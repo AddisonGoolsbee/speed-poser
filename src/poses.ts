@@ -13,6 +13,80 @@ export const connections = [
   ["right_knee", "right_ankle"],
 ];
 
+export const CONTROL_POSES = {
+  Start: {
+    name: "Start",
+    right_shoulder: {
+      x: 0.46,
+      y: 0.32,
+    },
+    left_hip: {
+      x: 0.54,
+      y: 0.59,
+    },
+    right_elbow: {
+      x: 0.42,
+      y: 0.22,
+    },
+    left_shoulder: {
+      x: 0.56,
+      y: 0.35,
+    },
+    right_hip: {
+      x: 0.47,
+      y: 0.58,
+    },
+    left_elbow: {
+      x: 0.6,
+      y: 0.45,
+    },
+    left_wrist: {
+      x: 0.64,
+      y: 0.53,
+    },
+    right_wrist: {
+      x: 0.41,
+      y: 0.13,
+    },
+    left_knee: {
+      x: 0.59,
+      y: 0.75,
+    },
+    right_knee: {
+      x: 0.42,
+      y: 0.76,
+    },
+    left_ear: {
+      x: 0.54,
+      y: 0.27,
+    },
+    right_ear: {
+      x: 0.49,
+      y: 0.27,
+    },
+    nose: {
+      x: 0.52,
+      y: 0.27,
+    },
+    left_eye: {
+      x: 0.53,
+      y: 0.26,
+    },
+    right_eye: {
+      x: 0.5,
+      y: 0.26,
+    },
+    left_ankle: {
+      x: 0.64,
+      y: 0.93,
+    },
+    right_ankle: {
+      x: 0.38,
+      y: 0.9,
+    },
+  },
+};
+
 export const TARGET_POSES = [
   {
     name: "Hooray!",
@@ -511,4 +585,4 @@ export const TARGET_POSES = [
       y: 0.18,
     },
   },
-]; 
+];

@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, type JSX } from "react";
 import * as tf from "@tensorflow/tfjs";
 import "@tensorflow/tfjs-backend-webgl";
 import * as poseDetection from "@tensorflow-models/pose-detection";
-import { connections, TARGET_POSES } from "./poses";
+import { connections, TARGET_POSES, CONTROL_POSES } from "./poses";
 
 // Define types for pose data
 type Keypoint = {
@@ -19,6 +19,8 @@ type Pose = {
 const SMOOTHING_FACTOR = 0.5;
 // Number of frames to keep a keypoint after it's no longer detected
 const PERSISTENCE_FRAMES = 10;
+// Number of frames to hold the start pose for a point
+const START_POSE_HOLD_FRAMES = 180;
 // Number of frames to hold pose for a point
 const HOLD_FRAMES = 90;
 // Minimum similarity threshold to count as matching
@@ -130,6 +132,7 @@ export default function App(): JSX.Element {
   );
   const [timeLeft, setTimeLeft] = useState(30);
   const [finalScore, setFinalScore] = useState(0);
+  const startPoseHoldFrames = useRef(0);
 
   // Timer effect
   useEffect(() => {
@@ -285,6 +288,23 @@ export default function App(): JSX.Element {
             }
           }
 
+          // Check for Start pose when in idle state
+          if (gameState === "idle") {
+            const startPoseSimilarity = calculateSimilarity(
+              lastKnownPositions.current,
+              CONTROL_POSES.Start
+            );
+            if (startPoseSimilarity > MATCH_THRESHOLD) {
+              startPoseHoldFrames.current++;
+              if (startPoseHoldFrames.current >= HOLD_FRAMES) {
+                startGame();
+                startPoseHoldFrames.current = 0;
+              }
+            } else {
+              startPoseHoldFrames.current = 0;
+            }
+          }
+
           // Log current pose every 5 seconds
           const now = Date.now();
           if (now - lastLogTime.current > 5000) {
@@ -386,6 +406,17 @@ export default function App(): JSX.Element {
             );
             drawTargetPose(targetCtx, currentTargetPoseRef.current);
           }
+        } else if (gameState === "idle") {
+          const targetCtx = targetCanvasRef.current?.getContext("2d");
+          if (targetCtx) {
+            targetCtx.clearRect(
+              0,
+              0,
+              targetCtx.canvas.width,
+              targetCtx.canvas.height
+            );
+            drawTargetPose(targetCtx, CONTROL_POSES.Start);
+          }
         }
         requestAnimationFrame(render);
       };
@@ -405,7 +436,7 @@ export default function App(): JSX.Element {
             height={480}
             className="w-full h-full object-contain transform -scale-x-100"
           />
-          {gameState === "playing" && (
+          {(gameState === "playing" || gameState === "idle") && (
             <div className="absolute inset-0 w-full h-full pointer-events-none">
               <canvas
                 ref={targetCanvasRef}
@@ -422,12 +453,16 @@ export default function App(): JSX.Element {
       <div className="relative w-full h-full">
         {/* Start Screen */}
         {gameState === "idle" && (
-          <button
-            onClick={startGame}
-            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-8 rounded-lg text-2xl"
-          >
-            Start Game
-          </button>
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-center">
+            <div className="text-white text-4xl font-bold mb-2">
+              Strike the Start Pose!
+            </div>
+            <div className="text-white text-2xl">
+              Hold for{" "}
+              {Math.round((START_POSE_HOLD_FRAMES - startPoseHoldFrames.current) / 60)}{" "}
+              seconds
+            </div>
+          </div>
         )}
 
         {/* Game Screen */}
