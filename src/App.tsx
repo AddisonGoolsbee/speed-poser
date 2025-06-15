@@ -1,24 +1,19 @@
-// src/App.tsx
 import { useRef, useEffect, useState, type JSX } from "react";
 import * as tf from "@tensorflow/tfjs";
 import "@tensorflow/tfjs-backend-webgl";
 import * as poseDetection from "@tensorflow-models/pose-detection";
+import { connections, TARGET_POSES } from "./poses";
 
-// Define the connections between keypoints for MoveNet
-const connections = [
-  ["left_shoulder", "right_shoulder"],
-  ["left_shoulder", "left_elbow"],
-  ["left_elbow", "left_wrist"],
-  ["right_shoulder", "right_elbow"],
-  ["right_elbow", "right_wrist"],
-  ["left_shoulder", "left_hip"],
-  ["right_shoulder", "right_hip"],
-  ["left_hip", "right_hip"],
-  ["left_hip", "left_knee"],
-  ["left_knee", "left_ankle"],
-  ["right_hip", "right_knee"],
-  ["right_knee", "right_ankle"],
-];
+// Define types for pose data
+type Keypoint = {
+  x: number;
+  y: number;
+};
+
+type Pose = {
+  name: string;
+  [key: string]: Keypoint | string;
+};
 
 // Smoothing factor (0-1), higher means more smoothing
 const SMOOTHING_FACTOR = 0.5;
@@ -29,559 +24,8 @@ const HOLD_FRAMES = 90;
 // Minimum similarity threshold to count as matching
 const MATCH_THRESHOLD = 0.85;
 
-// Target pose (arms up with proper head position)
-const TARGET_POSES = [
-  {
-    left_shoulder: {
-      x: 0.57,
-      y: 0.27,
-    },
-    left_elbow: {
-      x: 0.64,
-      y: 0.22,
-    },
-    right_elbow: {
-      x: 0.39,
-      y: 0.22,
-    },
-    left_hip: {
-      x: 0.54,
-      y: 0.53,
-    },
-    right_hip: {
-      x: 0.47,
-      y: 0.52,
-    },
-    right_knee: {
-      x: 0.43,
-      y: 0.69,
-    },
-    left_knee: {
-      x: 0.59,
-      y: 0.7,
-    },
-    right_shoulder: {
-      x: 0.45,
-      y: 0.27,
-    },
-    left_wrist: {
-      x: 0.71,
-      y: 0.15,
-    },
-    right_wrist: {
-      x: 0.33,
-      y: 0.14,
-    },
-    left_ear: {
-      x: 0.54,
-      y: 0.22,
-    },
-    nose: {
-      x: 0.51,
-      y: 0.22,
-    },
-    right_ear: {
-      x: 0.49,
-      y: 0.22,
-    },
-    left_ankle: {
-      x: 0.61,
-      y: 0.84,
-    },
-    right_ankle: {
-      x: 0.4,
-      y: 0.83,
-    },
-    left_eye: {
-      x: 0.52,
-      y: 0.21,
-    },
-    right_eye: {
-      x: 0.5,
-      y: 0.21,
-    },
-  },
-  {
-    right_hip: {
-      x: 0.45,
-      y: 0.66,
-    },
-    left_hip: {
-      x: 0.54,
-      y: 0.66,
-    },
-    right_knee: {
-      x: 0.35,
-      y: 0.8,
-    },
-    left_shoulder: {
-      x: 0.56,
-      y: 0.37,
-    },
-    left_knee: {
-      x: 0.65,
-      y: 0.82,
-    },
-    left_elbow: {
-      x: 0.64,
-      y: 0.34,
-    },
-    right_shoulder: {
-      x: 0.42,
-      y: 0.38,
-    },
-    left_ear: {
-      x: 0.52,
-      y: 0.3,
-    },
-    right_ear: {
-      x: 0.46,
-      y: 0.31,
-    },
-    right_eye: {
-      x: 0.47,
-      y: 0.3,
-    },
-    left_ankle: {
-      x: 0.54,
-      y: 0.92,
-    },
-    left_eye: {
-      x: 0.5,
-      y: 0.3,
-    },
-    left_wrist: {
-      x: 0.57,
-      y: 0.26,
-    },
-    right_ankle: {
-      x: 0.44,
-      y: 0.91,
-    },
-    right_wrist: {
-      x: 0.41,
-      y: 0.25,
-    },
-    right_elbow: {
-      x: 0.35,
-      y: 0.33,
-    },
-    nose: {
-      x: 0.49,
-      y: 0.31,
-    },
-  },
-  {
-    left_hip: {
-      x: 0.53,
-      y: 0.61,
-    },
-    right_hip: {
-      x: 0.47,
-      y: 0.62,
-    },
-    left_knee: {
-      x: 0.54,
-      y: 0.78,
-    },
-    right_knee: {
-      x: 0.45,
-      y: 0.78,
-    },
-    left_elbow: {
-      x: 0.61,
-      y: 0.48,
-    },
-    left_shoulder: {
-      x: 0.55,
-      y: 0.4,
-    },
-    right_shoulder: {
-      x: 0.44,
-      y: 0.4,
-    },
-    right_elbow: {
-      x: 0.39,
-      y: 0.48,
-    },
-    left_wrist: {
-      x: 0.69,
-      y: 0.47,
-    },
-    right_wrist: {
-      x: 0.31,
-      y: 0.47,
-    },
-    right_ankle: {
-      x: 0.39,
-      y: 0.87,
-    },
-    left_ear: {
-      x: 0.52,
-      y: 0.33,
-    },
-    left_ankle: {
-      x: 0.61,
-      y: 0.89,
-    },
-    nose: {
-      x: 0.5,
-      y: 0.33,
-    },
-    right_ear: {
-      x: 0.47,
-      y: 0.33,
-    },
-    left_eye: {
-      x: 0.51,
-      y: 0.32,
-    },
-    right_eye: {
-      x: 0.48,
-      y: 0.32,
-    },
-  },
-  {
-    left_shoulder: {
-      x: 0.49,
-      y: 0.46,
-    },
-    right_shoulder: {
-      x: 0.46,
-      y: 0.31,
-    },
-    left_knee: {
-      x: 0.45,
-      y: 0.76,
-    },
-    nose: {
-      x: 0.52,
-      y: 0.37,
-    },
-    right_ear: {
-      x: 0.52,
-      y: 0.36,
-    },
-    right_knee: {
-      x: 0.31,
-      y: 0.76,
-    },
-    left_ankle: {
-      x: 0.48,
-      y: 0.91,
-    },
-    right_ankle: {
-      x: 0.35,
-      y: 0.88,
-    },
-    right_wrist: {
-      x: 0.61,
-      y: 0.27,
-    },
-    right_elbow: {
-      x: 0.52,
-      y: 0.26,
-    },
-    left_hip: {
-      x: 0.4,
-      y: 0.55,
-    },
-    right_hip: {
-      x: 0.33,
-      y: 0.52,
-    },
-    left_wrist: {
-      x: 0.55,
-      y: 0.67,
-    },
-    left_elbow: {
-      x: 0.51,
-      y: 0.57,
-    },
-    right_eye: {
-      x: 0.53,
-      y: 0.36,
-    },
-    left_ear: {
-      x: 0.52,
-      y: 0.42,
-    },
-    left_eye: {
-      x: 0.53,
-      y: 0.39,
-    },
-  },
-  {
-    left_shoulder: {
-      x: 0.6,
-      y: 0.23,
-    },
-    right_hip: {
-      x: 0.51,
-      y: 0.48,
-    },
-    left_hip: {
-      x: 0.58,
-      y: 0.48,
-    },
-    left_elbow: {
-      x: 0.69,
-      y: 0.22,
-    },
-    right_shoulder: {
-      x: 0.47,
-      y: 0.27,
-    },
-    left_ear: {
-      x: 0.55,
-      y: 0.16,
-    },
-    nose: {
-      x: 0.52,
-      y: 0.16,
-    },
-    right_ear: {
-      x: 0.49,
-      y: 0.17,
-    },
-    left_eye: {
-      x: 0.53,
-      y: 0.15,
-    },
-    right_eye: {
-      x: 0.5,
-      y: 0.15,
-    },
-    left_knee: {
-      x: 0.55,
-      y: 0.67,
-    },
-    right_knee: {
-      x: 0.41,
-      y: 0.58,
-    },
-    left_wrist: {
-      x: 0.73,
-      y: 0.14,
-    },
-    right_elbow: {
-      x: 0.43,
-      y: 0.37,
-    },
-    left_ankle: {
-      x: 0.53,
-      y: 0.83,
-    },
-    right_wrist: {
-      x: 0.35,
-      y: 0.42,
-    },
-    right_ankle: {
-      x: 0.41,
-      y: 0.76,
-    },
-  },
-  {
-    left_hip: {
-      x: 0.6,
-      y: 0.65,
-    },
-    right_hip: {
-      x: 0.53,
-      y: 0.65,
-    },
-    left_knee: {
-      x: 0.54,
-      y: 0.77,
-    },
-    right_knee: {
-      x: 0.43,
-      y: 0.71,
-    },
-    left_elbow: {
-      x: 0.46,
-      y: 0.55,
-    },
-    left_shoulder: {
-      x: 0.54,
-      y: 0.44,
-    },
-    right_shoulder: {
-      x: 0.46,
-      y: 0.44,
-    },
-    right_elbow: {
-      x: 0.39,
-      y: 0.45,
-    },
-    left_ankle: {
-      x: 0.62,
-      y: 0.9,
-    },
-    right_ear: {
-      x: 0.47,
-      y: 0.36,
-    },
-    left_ear: {
-      x: 0.52,
-      y: 0.36,
-    },
-    nose: {
-      x: 0.48,
-      y: 0.36,
-    },
-    left_eye: {
-      x: 0.5,
-      y: 0.34,
-    },
-    right_eye: {
-      x: 0.47,
-      y: 0.35,
-    },
-    right_wrist: {
-      x: 0.31,
-      y: 0.42,
-    },
-    right_ankle: {
-      x: 0.51,
-      y: 0.84,
-    },
-    left_wrist: {
-      x: 0.38,
-      y: 0.58,
-    },
-  },
-  {
-    left_hip: {
-      x: 0.54,
-      y: 0.48,
-    },
-    right_hip: {
-      x: 0.47,
-      y: 0.5,
-    },
-    right_shoulder: {
-      x: 0.42,
-      y: 0.26,
-    },
-    right_elbow: {
-      x: 0.36,
-      y: 0.36,
-    },
-    left_shoulder: {
-      x: 0.53,
-      y: 0.22,
-    },
-    left_elbow: {
-      x: 0.6,
-      y: 0.15,
-    },
-    left_ear: {
-      x: 0.51,
-      y: 0.17,
-    },
-    right_ear: {
-      x: 0.46,
-      y: 0.17,
-    },
-    left_eye: {
-      x: 0.5,
-      y: 0.16,
-    },
-    right_eye: {
-      x: 0.47,
-      y: 0.16,
-    },
-    right_knee: {
-      x: 0.48,
-      y: 0.69,
-    },
-    left_knee: {
-      x: 0.65,
-      y: 0.58,
-    },
-    left_ankle: {
-      x: 0.53,
-      y: 0.59,
-    },
-    right_wrist: {
-      x: 0.43,
-      y: 0.42,
-    },
-    left_wrist: {
-      x: 0.54,
-      y: 0.11,
-    },
-    right_ankle: {
-      x: 0.51,
-      y: 0.88,
-    },
-    nose: {
-      x: 0.48,
-      y: 0.18,
-    },
-  },
-  {
-    left_hip: {
-      x: 0.54,
-      y: 0.52,
-    },
-    right_hip: {
-      x: 0.33,
-      y: 0.54,
-    },
-    right_shoulder: {
-      x: 0.21,
-      y: 0.06,
-    },
-    right_elbow: {
-      x: 0.15,
-      y: 0.56,
-    },
-    left_shoulder: {
-      x: 0.65,
-      y: 0.08,
-    },
-    left_knee: {
-      x: 0.48,
-      y: 0.97,
-    },
-    right_eye: {
-      x: 0.34,
-      y: 0.08,
-    },
-    nose: {
-      x: 0.39,
-      y: 0.18,
-    },
-    left_ear: {
-      x: 0.54,
-      y: 0,
-    },
-    left_eye: {
-      x: 0.45,
-      y: 0.08,
-    },
-    right_ear: {
-      x: 0.28,
-      y: 0,
-    },
-    left_elbow: {
-      x: 0.75,
-      y: 0.51,
-    },
-    right_knee: {
-      x: 0.31,
-      y: 0.99,
-    },
-  },
-];
-
 // Draw the target pose on a canvas
-const drawTargetPose = (
-  ctx: CanvasRenderingContext2D,
-  targetPose: (typeof TARGET_POSES)[0]
-) => {
+const drawTargetPose = (ctx: CanvasRenderingContext2D, targetPose: Pose) => {
   const width = ctx.canvas.width;
   const height = ctx.canvas.height;
 
@@ -592,8 +36,12 @@ const drawTargetPose = (
 
   // Find the lowest point in the pose
   let lowestY = 0;
-  for (const keypoint of Object.values(targetPose)) {
-    lowestY = Math.max(lowestY, keypoint.y);
+  for (const key in targetPose) {
+    if (key === "name") continue;
+    const keypoint = targetPose[key];
+    if (keypoint && typeof keypoint === "object" && "y" in keypoint) {
+      lowestY = Math.max(lowestY, keypoint.y);
+    }
   }
 
   // Calculate the scale factor to move the lowest point to 90% of height
@@ -604,10 +52,18 @@ const drawTargetPose = (
   ctx.strokeStyle = "#87CEEB"; // Light blue color for target pose
   ctx.lineWidth = 24; // Even thicker lines for better visibility
   for (const [start, end] of connections) {
-    const startPos = targetPose[start as keyof typeof targetPose];
-    const endPos = targetPose[end as keyof typeof targetPose];
-
-    if (startPos && endPos) {
+    const startPos = targetPose[start];
+    const endPos = targetPose[end];
+    if (
+      startPos &&
+      endPos &&
+      typeof startPos === "object" &&
+      "x" in startPos &&
+      "y" in startPos &&
+      typeof endPos === "object" &&
+      "x" in endPos &&
+      "y" in endPos
+    ) {
       ctx.beginPath();
       ctx.moveTo(startPos.x * width, startPos.y * height * scaleY);
       ctx.lineTo(endPos.x * width, endPos.y * height * scaleY);
@@ -620,7 +76,20 @@ const drawTargetPose = (
   const leftEyePos = targetPose.left_eye;
   const rightEyePos = targetPose.right_eye;
 
-  if (nosePos && leftEyePos && rightEyePos) {
+  if (
+    nosePos &&
+    leftEyePos &&
+    rightEyePos &&
+    typeof nosePos === "object" &&
+    "x" in nosePos &&
+    "y" in nosePos &&
+    typeof leftEyePos === "object" &&
+    "x" in leftEyePos &&
+    "y" in leftEyePos &&
+    typeof rightEyePos === "object" &&
+    "x" in rightEyePos &&
+    "y" in rightEyePos
+  ) {
     const eyeDistance = Math.hypot(
       (rightEyePos.x - leftEyePos.x) * width,
       (rightEyePos.y - leftEyePos.y) * height * scaleY
@@ -713,14 +182,20 @@ export default function App(): JSX.Element {
   // Calculate similarity between current pose and target pose
   const calculateSimilarity = (
     currentPose: Map<string, { x: number; y: number }>,
-    targetPose: (typeof TARGET_POSES)[0]
+    targetPose: Pose
   ) => {
     let totalDiff = 0;
     let count = 0;
 
     for (const [key, targetPos] of Object.entries(targetPose)) {
+      if (key === "name") continue;
       const currentPos = currentPose.get(key);
-      if (currentPos) {
+      if (
+        currentPos &&
+        typeof targetPos === "object" &&
+        "x" in targetPos &&
+        "y" in targetPos
+      ) {
         // Normalize positions to 0-1 range
         const currentX = currentPos.x / 640;
         const currentY = currentPos.y / 480;
@@ -900,12 +375,24 @@ export default function App(): JSX.Element {
             ctx.stroke();
           }
         }
+        if (gameState === "playing") {
+          const targetCtx = targetCanvasRef.current?.getContext("2d");
+          if (targetCtx) {
+            targetCtx.clearRect(
+              0,
+              0,
+              targetCtx.canvas.width,
+              targetCtx.canvas.height
+            );
+            drawTargetPose(targetCtx, currentTargetPoseRef.current);
+          }
+        }
         requestAnimationFrame(render);
       };
       render();
     }
     init();
-  }, []);
+  }, [gameState]);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-900">
@@ -946,6 +433,9 @@ export default function App(): JSX.Element {
         {/* Game Screen */}
         {gameState === "playing" && (
           <>
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-4xl font-bold text-white bg-black bg-opacity-50 px-6 py-2 rounded-lg">
+              {currentTargetPose.name}
+            </div>
             <div className="absolute top-4 left-4 text-white text-2xl">
               Points: {points}
             </div>
