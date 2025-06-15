@@ -16,6 +16,84 @@ type Pose = {
   [key: string]: Keypoint | string;
 };
 
+// Define joint triplets for angle calculation
+const JOINT_TRIPLETS: [string, string, string][] = [
+  // Arms
+  ["left_shoulder", "left_elbow", "left_wrist"],
+  ["right_shoulder", "right_elbow", "right_wrist"],
+  // Legs
+  ["left_hip", "left_knee", "left_ankle"],
+  ["right_hip", "right_knee", "right_ankle"],
+  // Torso
+  ["left_shoulder", "left_hip", "left_knee"],
+  ["right_shoulder", "right_hip", "right_knee"],
+  ["left_elbow", "left_shoulder", "left_hip"],
+  ["right_elbow", "right_shoulder", "right_hip"],
+  // Additional angles for more precision
+  ["left_shoulder", "left_hip", "right_hip"], // Torso rotation
+  ["right_shoulder", "right_hip", "left_hip"], // Torso rotation
+  ["left_hip", "left_knee", "right_knee"], // Hip alignment
+  ["right_hip", "right_knee", "left_knee"], // Hip alignment
+  ["left_shoulder", "left_elbow", "left_hip"], // Arm position relative to torso
+  ["right_shoulder", "right_elbow", "right_hip"], // Arm position relative to torso
+  ["left_knee", "left_ankle", "right_ankle"], // Foot alignment
+  ["right_knee", "right_ankle", "left_ankle"], // Foot alignment
+];
+
+// Calculate angles between joints
+function poseAngles(kp: Map<string, { x: number; y: number }>) {
+  const angles: number[] = [];
+  for (const [A, B, C] of JOINT_TRIPLETS) {
+    const pointA = kp.get(A);
+    const pointB = kp.get(B);
+    const pointC = kp.get(C);
+
+    if (pointA && pointB && pointC) {
+      const v1 = { x: pointA.x - pointB.x, y: pointA.y - pointB.y };
+      const v2 = { x: pointC.x - pointB.x, y: pointC.y - pointB.y };
+      const dot = v1.x * v2.x + v1.y * v2.y;
+      const mag = Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y);
+      angles.push(Math.acos(Math.min(1, Math.max(-1, dot / mag))));
+    }
+  }
+  return angles;
+}
+
+// Calculate similarity between two sets of angles
+function angleSimilarity(a: number[], b: number[]) {
+  if (a.length === 0 || b.length === 0) return 0;
+
+  // Maximum allowed angle difference in radians (10 degrees)
+  const MAX_ANGLE_DIFF = 20 * (Math.PI / 180);
+  // Penalty factor for angles that exceed the threshold
+  const PENALTY_FACTOR = 0.4;
+
+  let totalScore = 0;
+  let validAngles = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    const diff = Math.abs(a[i] - b[i]);
+
+    // Calculate individual joint score
+    let jointScore = 0;
+    if (diff <= MAX_ANGLE_DIFF) {
+      // If within threshold, use quadratic falloff for balanced scoring
+      jointScore = 1 - Math.pow(diff / MAX_ANGLE_DIFF, 2.4);
+    } else {
+      // If beyond threshold, apply moderate penalty
+      jointScore = Math.max(0, 1 - (diff / MAX_ANGLE_DIFF) * PENALTY_FACTOR);
+    }
+
+    totalScore += jointScore;
+    validAngles++;
+  }
+
+  if (validAngles === 0) return 0;
+
+  // Return score between 0 and 1
+  return totalScore / validAngles;
+}
+
 // Smoothing factor (0-1), higher means more smoothing
 const SMOOTHING_FACTOR = 0.5;
 // Number of frames to keep a keypoint after it's no longer detected
@@ -188,35 +266,24 @@ export default function App(): JSX.Element {
     currentPose: Map<string, { x: number; y: number }>,
     targetPose: Pose
   ) => {
-    let totalDiff = 0;
-    let count = 0;
-
-    for (const [key, targetPos] of Object.entries(targetPose)) {
+    // Convert target pose to the same format as current pose
+    const targetPoseMap = new Map<string, { x: number; y: number }>();
+    for (const [key, value] of Object.entries(targetPose)) {
       if (key === "name") continue;
-      const currentPos = currentPose.get(key);
-      if (
-        currentPos &&
-        typeof targetPos === "object" &&
-        "x" in targetPos &&
-        "y" in targetPos
-      ) {
-        // Normalize positions to 0-1 range
-        const currentX = currentPos.x / 640;
-        const currentY = currentPos.y / 480;
-
-        // Calculate difference
-        const diffX = Math.abs(currentX - targetPos.x);
-        const diffY = Math.abs(currentY - targetPos.y);
-        totalDiff += diffX + diffY;
-        count++;
+      if (typeof value === "object" && "x" in value && "y" in value) {
+        targetPoseMap.set(key, {
+          x: value.x * 640, // Scale to video dimensions
+          y: value.y * 480,
+        });
       }
     }
 
-    if (count === 0) return 0;
+    // Calculate angles for both poses
+    const currentAngles = poseAngles(currentPose);
+    const targetAngles = poseAngles(targetPoseMap);
 
-    // Convert difference to similarity (0-1)
-    const avgDiff = totalDiff / count;
-    return Math.max(0, 1 - avgDiff * 2);
+    // Compare angles
+    return angleSimilarity(currentAngles, targetAngles);
   };
 
   // Draw target pose when component mounts or target pose changes
