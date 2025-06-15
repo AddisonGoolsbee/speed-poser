@@ -656,6 +656,59 @@ export default function App(): JSX.Element {
   const [currentTargetPose, setCurrentTargetPose] = useState(
     currentTargetPoseRef.current
   );
+  const [gameState, setGameState] = useState<"idle" | "playing" | "finished">(
+    "idle"
+  );
+  const [timeLeft, setTimeLeft] = useState(30);
+  const [finalScore, setFinalScore] = useState(0);
+
+  // Timer effect
+  useEffect(() => {
+    let timer: number;
+    if (gameState === "playing" && timeLeft > 0) {
+      timer = window.setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            setGameState("finished");
+            setFinalScore(points);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [gameState, timeLeft, points]);
+
+  const startGame = () => {
+    setGameState("playing");
+    setTimeLeft(30);
+    setPoints(0);
+    setFinalScore(0);
+    // Reset target pose
+    const newTargetPose =
+      TARGET_POSES[Math.floor(Math.random() * TARGET_POSES.length)];
+    currentTargetPoseRef.current = newTargetPose;
+    setCurrentTargetPose(newTargetPose);
+
+    // Force redraw of target pose
+    const targetCtx = targetCanvasRef.current?.getContext("2d");
+    if (targetCtx) {
+      targetCtx.clearRect(
+        0,
+        0,
+        targetCtx.canvas.width,
+        targetCtx.canvas.height
+      );
+      drawTargetPose(targetCtx, newTargetPose);
+    }
+  };
+
+  const playAgain = () => {
+    startGame();
+  };
 
   // Calculate similarity between current pose and target pose
   const calculateSimilarity = (
@@ -689,18 +742,20 @@ export default function App(): JSX.Element {
 
   // Draw target pose when component mounts or target pose changes
   useEffect(() => {
-    const targetCtx = targetCanvasRef.current?.getContext("2d");
-    if (targetCtx) {
-      // Clear the canvas first
-      targetCtx.clearRect(
-        0,
-        0,
-        targetCtx.canvas.width,
-        targetCtx.canvas.height
-      );
-      drawTargetPose(targetCtx, currentTargetPoseRef.current);
+    if (gameState === "playing") {
+      const targetCtx = targetCanvasRef.current?.getContext("2d");
+      if (targetCtx) {
+        // Clear the canvas first
+        targetCtx.clearRect(
+          0,
+          0,
+          targetCtx.canvas.width,
+          targetCtx.canvas.height
+        );
+        drawTargetPose(targetCtx, currentTargetPoseRef.current);
+      }
     }
-  }, [currentTargetPose]);
+  }, [gameState, currentTargetPose]);
 
   useEffect(() => {
     async function init() {
@@ -854,19 +909,8 @@ export default function App(): JSX.Element {
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-900">
-      <div className="absolute top-4 left-4 text-white text-2xl">
-        Points: {points}
-      </div>
-      <div className="absolute top-4 right-4 text-white text-2xl">
-        Match: {Math.round(similarity * 100)}%
-      </div>
-      <div className="absolute top-16 right-4 w-48 h-4 bg-gray-800 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-green-500 transition-all duration-200"
-          style={{ width: `${similarity * 100}%` }}
-        />
-      </div>
-      <div className="relative w-full h-full flex items-center justify-center py-16">
+      {/* Camera Feed Layer */}
+      <div className="absolute inset-0 flex items-center justify-center">
         <div className="relative w-[1024px] h-[768px]">
           <canvas
             ref={canvasRef}
@@ -874,16 +918,72 @@ export default function App(): JSX.Element {
             height={480}
             className="w-full h-full object-contain transform -scale-x-100"
           />
-          <div className="absolute inset-0 w-full h-full pointer-events-none">
-            <canvas
-              ref={targetCanvasRef}
-              width={1024}
-              height={768}
-              className="w-full h-full object-contain opacity-50 absolute top-0 left-0 z-10 transform -scale-x-100"
-            />
-          </div>
+          {gameState === "playing" && (
+            <div className="absolute inset-0 w-full h-full pointer-events-none">
+              <canvas
+                ref={targetCanvasRef}
+                width={1024}
+                height={768}
+                className="w-full h-full object-contain opacity-50 absolute top-0 left-0 transform -scale-x-100"
+              />
+            </div>
+          )}
         </div>
       </div>
+
+      {/* UI Layer */}
+      <div className="relative w-full h-full">
+        {/* Start Screen */}
+        {gameState === "idle" && (
+          <button
+            onClick={startGame}
+            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-8 rounded-lg text-2xl"
+          >
+            Start Game
+          </button>
+        )}
+
+        {/* Game Screen */}
+        {gameState === "playing" && (
+          <>
+            <div className="absolute top-4 left-4 text-white text-2xl">
+              Points: {points}
+            </div>
+            <div className="absolute top-4 right-4 text-white text-2xl">
+              Time: {timeLeft}s
+            </div>
+            <div className="absolute top-16 right-4 text-white text-2xl">
+              Match: {Math.round(similarity * 100)}%
+            </div>
+            <div className="absolute top-24 right-4 w-48 h-4 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-green-500 transition-all duration-200"
+                style={{ width: `${similarity * 100}%` }}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Game Over Screen */}
+        {gameState === "finished" && (
+          <>
+            <div className="absolute inset-0 bg-black bg-opacity-30" />
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 p-8 rounded-lg text-center">
+              <h2 className="text-white text-4xl mb-4">Game Over!</h2>
+              <p className="text-white text-2xl mb-6">
+                Final Score: {finalScore}
+              </p>
+              <button
+                onClick={playAgain}
+                className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-xl"
+              >
+                Play Again
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
       <video ref={videoRef} className="hidden" />
     </div>
   );
