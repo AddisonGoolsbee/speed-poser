@@ -52,7 +52,7 @@ const drawTargetPose = (ctx: CanvasRenderingContext2D, targetPose: Pose) => {
   const scaleY = targetLowestY / lowestY;
 
   // Draw connections
-  ctx.strokeStyle = "#87CEEB"; // Light blue color for target pose
+  ctx.strokeStyle = "#33FFFF"; // Brighter blue color for target pose
   ctx.lineWidth = 24; // Even thicker lines for better visibility
   for (const [start, end] of connections) {
     const startPos = targetPose[start];
@@ -427,15 +427,15 @@ export default function App(): JSX.Element {
   }, [gameState]);
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-900">
+    <div className="flex flex-col items-center justify-center h-screen w-screen bg-[#111] overflow-hidden">
       {/* Camera Feed Layer */}
       <div className="absolute inset-0 flex items-center justify-center">
-        <div className="relative w-[1024px] h-[768px]">
+        <div className="relative h-full w-auto">
           <canvas
             ref={canvasRef}
             width={640}
             height={480}
-            className="w-full h-full object-contain transform -scale-x-100"
+            className="h-full w-auto object-contain transform -scale-x-100"
           />
           {(gameState === "playing" || gameState === "idle") && (
             <div className="absolute inset-0 w-full h-full pointer-events-none">
@@ -443,8 +443,20 @@ export default function App(): JSX.Element {
                 ref={targetCanvasRef}
                 width={1024}
                 height={768}
-                className="w-full h-full object-contain opacity-50 absolute top-0 left-0 transform -scale-x-100"
+                className="h-full w-auto object-contain opacity-50 absolute top-0 left-0 transform -scale-x-100"
               />
+            </div>
+          )}
+          {gameState === "playing" && (
+            <div className="text-white text-5xl font-bold tracking-wider">
+              <div className="absolute top-8 left-8 bg-black/50 px-6 py-2 rounded-xl flex items-center gap-2">
+                <span>⭐️</span>
+                <span>{points}</span>
+              </div>
+              <div className="absolute top-8 right-8 bg-black/50 px-6 py-2 rounded-xl flex items-center gap-2">
+                <span>⏱️</span>
+                <span>{timeLeft}</span>
+              </div>
             </div>
           )}
         </div>
@@ -454,10 +466,7 @@ export default function App(): JSX.Element {
       <div className="relative w-full h-full">
         {/* Start Screen */}
         {gameState === "idle" && (
-          <div className="flex flex-col items-center justify-center">
-            <div className="text-white text-2xl mb-4">
-              Hold this pose for 3 seconds to begin
-            </div>
+          <div className="flex flex-col items-center justify-start h-full mt-8">
             <PoseDisplay
               poseName="Superstar"
               similarity={calculateSimilarity(
@@ -468,12 +477,15 @@ export default function App(): JSX.Element {
               holdFramesRequired={START_POSE_HOLD_FRAMES}
               matchThreshold={MATCH_THRESHOLD}
             />
+            <div className="text-white text-4xl mt-8">
+              Hold this pose for 3 seconds to begin
+            </div>
           </div>
         )}
 
         {/* Game Screen */}
         {gameState === "playing" && (
-          <>
+          <div className="flex flex-col items-center h-full mt-8">
             <PoseDisplay
               poseName={currentTargetPose.name}
               similarity={similarity}
@@ -481,27 +493,21 @@ export default function App(): JSX.Element {
               holdFramesRequired={HOLD_FRAMES}
               matchThreshold={MATCH_THRESHOLD}
             />
-            <div className="absolute top-4 left-4 text-white text-2xl">
-              Points: {points}
-            </div>
-            <div className="absolute top-4 right-4 text-white text-2xl">
-              Time: {timeLeft}s
-            </div>
-          </>
+          </div>
         )}
 
         {/* Game Over Screen */}
         {gameState === "finished" && (
           <>
             <div className="absolute inset-0 bg-black bg-opacity-30" />
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 p-8 rounded-lg text-center">
-              <h2 className="text-white text-4xl mb-4">Game Over!</h2>
-              <p className="text-white text-2xl mb-6">
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 p-12 rounded-lg text-center">
+              <h2 className="text-white text-6xl mb-8">Game Over!</h2>
+              <p className="text-white text-4xl mb-12">
                 Final Score: {finalScore}
               </p>
               <button
                 onClick={playAgain}
-                className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-xl"
+                className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-8 rounded-lg text-2xl"
               >
                 Play Again
               </button>

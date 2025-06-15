@@ -302,7 +302,7 @@ export const TARGET_POSES = [
     },
   },
   {
-    name: "Blown Away",
+    name: "Side Stretch",
     left_shoulder: {
       x: 0.49,
       y: 0.46,
@@ -515,7 +515,7 @@ export const TARGET_POSES = [
     },
   },
   {
-    name: "huh",
+    name: "Head Scratch",
     left_hip: {
       x: 0.54,
       y: 0.48,
@@ -586,3 +586,4 @@ export const TARGET_POSES = [
     },
   },
 ];
+ 
