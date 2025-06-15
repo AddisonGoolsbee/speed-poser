@@ -3,6 +3,7 @@ import * as tf from "@tensorflow/tfjs";
 import "@tensorflow/tfjs-backend-webgl";
 import * as poseDetection from "@tensorflow-models/pose-detection";
 import { connections, TARGET_POSES, CONTROL_POSES } from "./poses";
+import { PoseDisplay } from "./components/PoseDisplay";
 
 // Define types for pose data
 type Keypoint = {
@@ -296,7 +297,7 @@ export default function App(): JSX.Element {
             );
             if (startPoseSimilarity > MATCH_THRESHOLD) {
               startPoseHoldFrames.current++;
-              if (startPoseHoldFrames.current >= HOLD_FRAMES) {
+              if (startPoseHoldFrames.current >= START_POSE_HOLD_FRAMES) {
                 startGame();
                 startPoseHoldFrames.current = 0;
               }
@@ -351,7 +352,7 @@ export default function App(): JSX.Element {
               }
             }
           } else {
-            holdFramesRef.current = 0;
+            holdFramesRef.current = Math.max(0, holdFramesRef.current - 1);
           }
 
           // Draw connections
@@ -453,38 +454,38 @@ export default function App(): JSX.Element {
       <div className="relative w-full h-full">
         {/* Start Screen */}
         {gameState === "idle" && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-center">
-            <div className="text-white text-4xl font-bold mb-2">
-              Strike the Start Pose!
+          <div className="flex flex-col items-center justify-center">
+            <div className="text-white text-2xl mb-4">
+              Hold this pose for 3 seconds to begin
             </div>
-            <div className="text-white text-2xl">
-              Hold for{" "}
-              {Math.round((START_POSE_HOLD_FRAMES - startPoseHoldFrames.current) / 60)}{" "}
-              seconds
-            </div>
+            <PoseDisplay
+              poseName="Superstar"
+              similarity={calculateSimilarity(
+                lastKnownPositions.current,
+                CONTROL_POSES.Start
+              )}
+              holdFrames={startPoseHoldFrames.current}
+              holdFramesRequired={START_POSE_HOLD_FRAMES}
+              matchThreshold={MATCH_THRESHOLD}
+            />
           </div>
         )}
 
         {/* Game Screen */}
         {gameState === "playing" && (
           <>
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-4xl font-bold text-white bg-black bg-opacity-50 px-6 py-2 rounded-lg">
-              {currentTargetPose.name}
-            </div>
+            <PoseDisplay
+              poseName={currentTargetPose.name}
+              similarity={similarity}
+              holdFrames={holdFramesRef.current}
+              holdFramesRequired={HOLD_FRAMES}
+              matchThreshold={MATCH_THRESHOLD}
+            />
             <div className="absolute top-4 left-4 text-white text-2xl">
               Points: {points}
             </div>
             <div className="absolute top-4 right-4 text-white text-2xl">
               Time: {timeLeft}s
-            </div>
-            <div className="absolute top-16 right-4 text-white text-2xl">
-              Match: {Math.round(similarity * 100)}%
-            </div>
-            <div className="absolute top-24 right-4 w-48 h-4 bg-gray-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-green-500 transition-all duration-200"
-                style={{ width: `${similarity * 100}%` }}
-              />
             </div>
           </>
         )}
